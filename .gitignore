@@ -1,0 +1,8 @@
+.vscode
+.idea
+dev.cpp
+*.s
+dev_web.cpp
+Makefile
+test.cpp
+*.out

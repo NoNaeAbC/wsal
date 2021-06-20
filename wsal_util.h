@@ -34,6 +34,19 @@ enum WSALEventTypes {
 	BUTTON_PRESSED
 };
 
+struct WSALMouseEvent{
+	int position_X;
+	int position_Y;
+};
+
+struct WSALKeyboardEvent{
+	unsigned int keycode;
+};
+
+union WSALEvent{
+	WSALMouseEvent mouseEvent;
+};
+
 class WSAL_Exception : std::exception {
 public:
 	int id;

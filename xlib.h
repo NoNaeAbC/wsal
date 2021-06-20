@@ -14,7 +14,7 @@ public:
 		isCopy = false;
 	}
 
-	[[nodiscard]] bool success()const{
+	[[nodiscard]] bool success() const {
 		return display != nullptr;
 	}
 
@@ -113,7 +113,7 @@ public:
 		windowAttributes.background_pixel = screen->getWhitePixel();
 		windowAttributes.border_pixel = screen->getBlackPixel();
 		windowAttributes.event_mask = ButtonPressMask | KeyPressMask | SubstructureNotifyMask;
-		window = XCreateWindow(screen->getDisplay(), screen->getRootWindow(), 200, 200, 350, 250, 2, screen->getDepth(),
+		window = XCreateWindow(screen->getDisplay(), screen->getRootWindow(), 500, 500, 800, 600, 2, screen->getDepth(),
 							   InputOutput, screen->getVisual(), valueMask, &windowAttributes);
 	}
 
@@ -144,8 +144,20 @@ public:
 				case DestroyNotify:
 					return false;
 					break;
-				case ButtonPress:
-					eventHandler->createEvent(0, BUTTON_PRESSED);
+				case ButtonPress: {
+					WSALMouseEvent e{};
+					e.position_X = event.xbutton.x;
+					e.position_Y = event.xbutton.y;
+					event.xbutton.x;
+					eventHandler->createEvent(e, BUTTON_PRESSED);
+				}
+					break;
+				case KeyPress: {
+					WSALKeyboardEvent e{};
+					e.keycode = event.xkey.keycode;
+					eventHandler->createEvent(e, KEY_PRESSED);
+				}
+
 					break;
 			}
 		}
@@ -161,6 +173,9 @@ public:
 				break;
 			case ButtonPress:
 				eventHandler->createEvent(0, BUTTON_PRESSED);
+				break;
+			case KeyPress:
+				eventHandler->createEvent(event.xkey.keycode, KEY_PRESSED);
 				break;
 		}
 		return true;

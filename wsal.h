@@ -128,7 +128,7 @@ class WsalContext {
 			case WSAL_XLIB:
 				wsContext = (void *) new WsalXlibContext;
 				((WsalXlibContext *) wsContext)->display = new XlibDisplay;
-				if(!((WsalXlibContext *) wsContext)->display->success()){
+				if (!((WsalXlibContext *) wsContext)->display->success()) {
 					return false;
 				}
 				((WsalXlibContext *) wsContext)->screen = new XlibScreen(((WsalXlibContext *) wsContext)->display);
@@ -141,13 +141,13 @@ class WsalContext {
 
 public:
 
-	WsalContext()  {
+	WsalContext() {
 		isCopy = false;
 		//windowSystem = wsalGetWindowSystems()[0];
-		for(auto possibleWindowSystem : wsalGetWindowSystems()){
+		for (auto possibleWindowSystem : wsalGetWindowSystems()) {
 			windowSystem = possibleWindowSystem;
 			bool success = init();
-			if(success){
+			if (success) {
 				return;
 			}
 		}
@@ -512,6 +512,11 @@ namespace WSAL {
 		restrictions->push_back(apis);
 	}
 
+	void addEglDepthBufferRestriction(std::vector<EGLint> *restrictions, const EGLint bits) {
+		restrictions->push_back(EGL_CONFORMANT);
+		restrictions->push_back(bits);
+	}
+
 
 	void finalizeEglRestriction(std::vector<EGLint> *restrictions) {
 		restrictions->push_back(EGL_NONE);
@@ -563,7 +568,7 @@ namespace WSAL {
 
 	EGLContext
 	createEglOpenGlEsContext(EGLDisplay display, EGLConfig config, EglVersion *maxVersion, bool debug = false) {
-		std::array<EglVersion, 4> versions{{{3, 2}, {3, 1}, {3, 0}, {2, 0}}};
+		std::array<EglVersion, 5> versions{{{3, 2}, {3, 1}, {3, 0}, {2, 0}, {1, 1}}};
 		for (EglVersion selectedVersion:versions) {
 			if (*maxVersion < selectedVersion) {
 				continue;
@@ -678,6 +683,10 @@ namespace WSAL {
 			addEglApiRestriction(&restrictions, apis);
 		}
 
+		void addDepthBufferRestriction(const EGLint bits) {
+			addEglDepthBufferRestriction(&restrictions, bits);
+		}
+
 		void addApiPreference(const EglVersion api) {
 			openGlEsVersion = api;
 		}
@@ -704,7 +713,7 @@ namespace WSAL {
 			return getEglOpenGlEsVersion(display, context);
 		}
 
-		EglVersion getGLESVersion() const {
+		[[nodiscard]] EglVersion getGLESVersion() const {
 			return openGlEsVersion;
 		}
 

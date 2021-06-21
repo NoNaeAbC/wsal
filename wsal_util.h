@@ -31,7 +31,9 @@ enum WsalErrorCodes {
 enum WSALEventTypes {
 	KEY_PRESSED,
 	KEY_RELEASED,
-	BUTTON_PRESSED
+	BUTTON_PRESSED,
+	BUTTON_RELEASED,
+	MOUSE_POSITION
 };
 
 struct WSALMouseEvent{
@@ -45,6 +47,7 @@ struct WSALKeyboardEvent{
 
 union WSALEvent{
 	WSALMouseEvent mouseEvent;
+	WSALKeyboardEvent keyboardEvent;
 };
 
 class WSAL_Exception : std::exception {

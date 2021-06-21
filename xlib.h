@@ -112,7 +112,8 @@ public:
 		XSetWindowAttributes windowAttributes;
 		windowAttributes.background_pixel = screen->getWhitePixel();
 		windowAttributes.border_pixel = screen->getBlackPixel();
-		windowAttributes.event_mask = ButtonPressMask | KeyPressMask | SubstructureNotifyMask;
+		windowAttributes.event_mask =
+				ButtonReleaseMask | ButtonPressMask | KeyPressMask | SubstructureNotifyMask | PointerMotionMask;
 		window = XCreateWindow(screen->getDisplay(), screen->getRootWindow(), 500, 500, 800, 600, 2, screen->getDepth(),
 							   InputOutput, screen->getVisual(), valueMask, &windowAttributes);
 	}
@@ -136,30 +137,56 @@ public:
 		XMapWindow(screen->getDisplay(), window);
 	}
 
+	bool handleEvent(XEvent event) {
+		switch (event.type) {
+			case DestroyNotify:
+				return false;
+				break;
+			case MotionNotify: {
+				WSALMouseEvent e{};
+				e.position_X = event.xmotion.x;
+				e.position_Y = event.xmotion.y;
+				WSALEvent resultEvent;
+				resultEvent.mouseEvent = e;
+				eventHandler->createEvent(resultEvent, MOUSE_POSITION);
+				break;
+			}
+			case ButtonPress: {
+				WSALMouseEvent e{};
+				e.position_X = event.xbutton.x;
+				e.position_Y = event.xbutton.y;
+				WSALEvent resultEvent;
+				resultEvent.mouseEvent = e;
+				eventHandler->createEvent(resultEvent, BUTTON_PRESSED);
+			}
+				break;
+			case ButtonRelease: {
+				WSALMouseEvent e{};
+				e.position_X = event.xbutton.x;
+				e.position_Y = event.xbutton.y;
+				WSALEvent resultEvent;
+				resultEvent.mouseEvent = e;
+				eventHandler->createEvent(resultEvent, BUTTON_RELEASED);
+			}
+				break;
+			case KeyPress: {
+				WSALKeyboardEvent e{};
+				e.keycode = event.xkey.keycode;
+				WSALEvent resultEvent;
+				resultEvent.keyboardEvent = e;
+				eventHandler->createEvent(resultEvent, KEY_PRESSED);
+			}
+
+				break;
+		}
+		return true;
+	}
+
 	bool pollEvents() {
 		XEvent event;
 		while (XPending(screen->getDisplay()) != 0) {
 			XNextEvent(screen->getDisplay(), &event);
-			switch (event.type) {
-				case DestroyNotify:
-					return false;
-					break;
-				case ButtonPress: {
-					WSALMouseEvent e{};
-					e.position_X = event.xbutton.x;
-					e.position_Y = event.xbutton.y;
-					event.xbutton.x;
-					eventHandler->createEvent(e, BUTTON_PRESSED);
-				}
-					break;
-				case KeyPress: {
-					WSALKeyboardEvent e{};
-					e.keycode = event.xkey.keycode;
-					eventHandler->createEvent(e, KEY_PRESSED);
-				}
-
-					break;
-			}
+			handleEvent(event);
 		}
 		return true;
 	}
@@ -167,17 +194,8 @@ public:
 	bool waitForEvents() {
 		XEvent event;
 		XNextEvent(screen->getDisplay(), &event);
-		switch (event.type) {
-			case DestroyNotify:
-				return false;
-				break;
-			case ButtonPress:
-				eventHandler->createEvent(0, BUTTON_PRESSED);
-				break;
-			case KeyPress:
-				eventHandler->createEvent(event.xkey.keycode, KEY_PRESSED);
-				break;
-		}
+		handleEvent(event);
+		pollEvents();
 		return true;
 	}
 

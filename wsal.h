@@ -3,13 +3,22 @@
 #ifndef WSAL_H
 #define WSAL_H
 
-#include "wsal_util.h"
-
 #include <vector>
 #include <array>
 #include <algorithm>
 #include <memory>
 //namespace wsal{
+
+
+#if defined(WSAL_USE_OPEN_GL_ES) && defined(WSAL_USE_OPEN_GL)
+#error WSAL can not have both OpenGL and OpenGLes, because libraries interfere
+#endif
+
+#if defined(WSAL_USE_OPEN_GL_ES)
+#define WSAL_OGL 1
+#elif defined(WSAL_USE_OPEN_GL_ES)
+#define WSAL_OGL 2
+#endif
 
 #ifndef NO_VULKAN
 
@@ -32,7 +41,9 @@
         std::cout << #X << std::endl; \
         break;
 
-bool ASSERT_EGL() {
+#define ASSERT_EGL() if(!assertEgl()){std::cout << "In line : " << __LINE__ <<std::endl;}
+
+bool assertEgl() {
 	EGLint error = eglGetError();
 	switch (error) {
 		case EGL_SUCCESS:
@@ -60,6 +71,21 @@ bool ASSERT_EGL() {
 #undef EGL_ERROR_SWITCH
 #endif //EGL
 
+
+#ifndef NO_GLX
+
+#define WSAL_GLX 2
+
+#include <GL/glew.h>
+#include <GL/glxew.h>
+#include <GL/glx.h>
+#include <GL/glxext.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
+
+#endif //GLX
+
+
 #ifndef WSAL_NO_XLIB
 
 #define WSAL_XLIB 2
@@ -79,53 +105,216 @@ bool ASSERT_EGL() {
 
 #include <vulkan/vulkan.h>
 #include <sstream>
+#include <optional>
 
 #endif
 
 #endif //LINUX
 
 #ifdef __WIN64__
+
+#include <windows.h>
+
+#define WSAL_WIN 3
+
+#ifndef NO_WGL
+
+#include <KHR/khrplatform.h>
+#include "GLEW/glew.h"
+#include "GLEW/wglew.h"
+#include <GL/gl.h>
+#include <GL/wgl.h>
+#include <GL/wglext.h>
+
+#include "win32.h"
+
 #endif
 
-/*
-template <class T>
-concept EventHandler = requires(T a, char keyCode)
-{
-	a.createEvent(keyCode, KEY_PRESSED);
-};*/
+#endif
+
+#include "wsal_util.h"
 
 #include "xlib.h"
 
-#define WSAL_NO_WS 0
-
-inline std::vector<int> wsalGetWindowSystems() {
-	return {
-#ifdef WSAL_XLIB
-			WSAL_XLIB,
+void printWsalWs(WsalWs ws) {
+	switch (ws) {
+#if defined(WSAL_XLIB)
+		case WSAL_WS_XLIB:
+			std::cout << "WSAL_WS_XLIB" << std::endl;
+			break;
 #endif
-
-	};
+#if defined(WSAL_XCB)
+			case WSAL_WS_XCB:
+				std::cout << "WSAL_WS_XCB" << std::endl;
+				break;
+#endif
+#if defined(WSAL_WAYLAND)
+			case WSAL_WS_WAYLAND:
+				std::cout << "WSAL_WS_WAYLAND" << std::endl;
+				break;
+#endif
+#if defined(WSAL_WEB)
+			case WSAL_WS_WEB:
+				std::cout << "WSAL_WS_WEB" << std::endl;
+				break;
+#endif
+#if defined(WSAL_WIN)
+			case WSAL_WS_WIN:
+				std::cout << "WSAL_WS_WIN" << std::endl;
+				break;
+#endif
+#if defined(WSAL_ANDROID)
+			case WSAL_WS_ANDROID:
+				std::cout << "WSAL_WS_ANDROID" << std::endl;
+				break;
+#endif
+	}
 }
 
-struct WsalWindowState {
-	std::wstring windowName;
-	int width;
-	int height;
-};
+namespace wsal {
+	WsalApi globalWsalApiSelection;
 
-class WsalContextState {
+	template<class T, const int arrayCount = 0>
+	struct VarArray {
+		const int count = arrayCount;
+		T s[arrayCount];
 
-};
+		inline constexpr VarArray<T, arrayCount + 1> push_back(T val) const {
+			VarArray<T, arrayCount + 1> ret;
+			for (int i = 0; i < count; i++) {
+				ret.s[i] = s[i];
+			}
+			ret.count = count + 1;
+			ret.s[count] = val;
+			return ret;
+		}
+
+		inline constexpr VarArray<T, arrayCount + 1> push_void() const {
+			VarArray<T, arrayCount + 1> ret;
+			for (int i = 0; i < count; i++) {
+				ret.s[i] = s[i];
+			}
+			ret.count = count;
+			return ret;
+		}
+
+		[[nodiscard]] inline constexpr int size() const {
+			return count;
+		}
+
+		inline constexpr T &operator[](int location) {
+			return s[location];
+		}
+
+		inline constexpr T *data() {
+			return s;
+		}
+	};
+
+}
+
+bool hasWayland() {
+	std::string session = getenv("XDG_SESSION_TYPE");
+	std::cout << session << std::endl;
+	return getenv("WAYLAND_DISPLAY") != nullptr;
+}
+
+bool hasVulkan() {
+	VkApplicationInfo testInfo;
+	testInfo.apiVersion = VK_VERSION_1_0;
+	testInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+	testInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+	testInfo.pApplicationName = "";
+	testInfo.pEngineName = "";
+	testInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	testInfo.pNext = nullptr;
+	VkInstance instance;
+	VkInstanceCreateInfo instanceCreateInfo;
+	instanceCreateInfo.pNext = nullptr;
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.enabledExtensionCount = 0;
+	instanceCreateInfo.enabledLayerCount = 0;
+	instanceCreateInfo.flags = 0;
+	instanceCreateInfo.pApplicationInfo = &testInfo;
+	instanceCreateInfo.ppEnabledExtensionNames = nullptr;
+	instanceCreateInfo.ppEnabledLayerNames = nullptr;
+	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+	bool returnValue = result == VK_SUCCESS;
+	vkDestroyInstance(instance, nullptr);
+	return returnValue;
+}
+
+/*
+ * May be expensive
+ */
+std::optional<std::vector<WsalWs>> selectApi(WsalApi api) {
+	wsal::globalWsalApiSelection = api;
+#if defined(WSAL_WIN)
+#elif defined(__linux__)
+	switch (api) {
+		case WSAL_API_GL: {
+			std::vector<WsalWs> validWs;
+#if defined(WSAL_WAYLAND)
+			if (hasWayland()) {
+				validWs.push_back(WSAL_WS_WAYLAND);
+			}
+#endif
+			validWs.push_back(WSAL_WS_XLIB);
+			return std::optional<std::vector<WsalWs>>{validWs};
+		}
+		case WSAL_NO_API: {
+			std::vector<WsalWs> validWs;
+#if defined(WSAL_WAYLAND)
+			if (hasWayland()) {
+				validWs.push_back(WSAL_WS_WAYLAND);
+			}
+#endif
+#if defined(WSAL_XCB)
+			validWs.push_back(WSAL_WS_XCB);
+#endif
+#if defined(WSAL_XLIB)
+			validWs.push_back(WSAL_WS_XLIB);
+#endif
+			return std::optional<std::vector<WsalWs>>{validWs};
+		}
+		case WSAL_API_VULKAN:
+			if (hasVulkan()) {
+				std::vector<WsalWs> validWs;
+#if defined(WSAL_WAYLAND)
+				if (hasWayland()) {
+					validWs.push_back(WSAL_WS_WAYLAND);
+				}
+#endif
+#if defined(WSAL_XCB)
+				validWs.push_back(WSAL_WS_XCB);
+#endif
+#if defined(WSAL_XLIB)
+				validWs.push_back(WSAL_WS_XLIB);
+#endif
+				return std::optional<std::vector<WsalWs>>{validWs};
+			}
+			[[fallthrough]];
+		case WSAL_API_DX11:
+		case WSAL_API_DX12:
+		case WSAL_API_GPU_WEB:
+			return std::nullopt;
+	}
+#elif defined(__emscripten)
+#elif defined(ANDROID)
+#endif
+	return std::nullopt;
+}
 
 template<class T>
 class WsalContext {
-	int windowSystem;
+	WsalWs windowSystem;
 	bool isCopy = true;
-	void *wsContext;
+	void *wsContext = nullptr;
 
 	bool init() {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
 				wsContext = (void *) new WsalXlibContext;
 				((WsalXlibContext *) wsContext)->display = new XlibDisplay;
 				if (!((WsalXlibContext *) wsContext)->display->success()) {
@@ -133,43 +322,46 @@ class WsalContext {
 				}
 				((WsalXlibContext *) wsContext)->screen = new XlibScreen(((WsalXlibContext *) wsContext)->display);
 				break;
+#endif
 			default:
-				throw 132;
+				throw WSAL_Exception(3245);
 		}
 		return true;
 	}
 
 public:
 
-	WsalContext() {
+	WsalContext(const std::vector<WsalWs> &windowSystems) {
 		isCopy = false;
-		//windowSystem = wsalGetWindowSystems()[0];
-		for (auto possibleWindowSystem : wsalGetWindowSystems()) {
+		for (auto possibleWindowSystem : windowSystems) {
 			windowSystem = possibleWindowSystem;
 			bool success = init();
 			if (success) {
 				return;
 			}
 		}
+		throw WSAL_Exception(2359);
 	}
 
-	WsalContext(int ws) : windowSystem(ws) {
+	WsalContext(WsalWs ws) : windowSystem(ws) {
 		isCopy = false;
 		init();
 	}
 
-	int getWindowSystem() {
+	WsalWs getWindowSystem() {
 		return windowSystem;
 	}
 
 	~WsalContext() {
 		if (!isCopy) {
 			switch (windowSystem) {
-				case WSAL_XLIB:
+#ifdef WSAL_XLIB
+				case WSAL_WS_XLIB:
 					delete ((WsalXlibContext *) wsContext)->screen;
 					delete ((WsalXlibContext *) wsContext)->display;
 					delete ((WsalXlibContext *) wsContext);
 					break;
+#endif
 			}
 		}
 	}
@@ -182,37 +374,41 @@ public:
 template<class T>
 class WsalWindow {
 	T eventHandler;
-	const int windowSystem;
+	const WsalWs windowSystem;
 	void *window = nullptr;
 	WsalContext<T> *wsalContext;
 
 	void init() {
 
 		switch (windowSystem) {
-			case WSAL_XLIB:
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
 				window = (void *) new XlibWindow<T>(((WsalXlibContext *) wsalContext->getWsContext())->screen);
 				((XlibWindow<T> *) window)->show();
 				break;
+#endif
 			default:
-				throw 132;
+				throw WSAL_Exception(2394);
 		}
 	}
 
 public:
 
-	WsalWindow(int ws, WsalContext<T> *context) : windowSystem(ws), wsalContext(context) {
+	WsalWindow(WsalWs ws, WsalContext<T> *context) : windowSystem(ws), wsalContext(context) {
 		init();
 	}
 
-	explicit WsalWindow(WsalContext<T> *context) : windowSystem(wsalGetWindowSystems()[0]), wsalContext(context) {
+	explicit WsalWindow(std::vector<WsalWs> ws, WsalContext<T> *context) : windowSystem(ws[0]), wsalContext(context) {
 		init();
 	}
 
 	~WsalWindow() {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
 				delete ((XlibWindow<T> *) window);
 				break;
+#endif
 		}
 	}
 
@@ -222,18 +418,20 @@ public:
 
 	bool pollEvents() {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
 				return ((XlibWindow<T> *) window)->pollEvents();
-				break;
+#endif
 		}
 		return false;
 	}
 
 	bool waitForEvents() {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
 				return ((XlibWindow<T> *) window)->waitForEvents();
-				break;
+#endif
 		}
 		return false;
 	}
@@ -244,7 +442,7 @@ public:
 
 	void initEglDisplay() {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+			case WSAL_WS_XLIB:
 				eglDisplay = ((XlibWindow<T> *) window)->getEglDisplay();
 				break;
 		}
@@ -256,7 +454,7 @@ public:
 
 	[[nodiscard]] EGLSurface createEglSurface(EGLDisplay display, EGLConfig config) {
 		switch (windowSystem) {
-			case WSAL_XLIB:
+			case WSAL_WS_XLIB:
 				return ((XlibWindow<T> *) window)->createEglSurface(display, config);
 				break;
 		}
@@ -365,6 +563,19 @@ namespace WSAL {
 		return supportedExtensions;
 	}
 
+#define WSAL_EGL_EXTENSION_COLORSPACE 0
+	typedef std::array<bool, 1> WsalEglExtensionId;
+
+	WsalEglExtensionId getSupportedEglExtensionsById(const std::vector<std::string> &extensions) {
+		WsalEglExtensionId extensionsIds = {false};
+		for (const auto &s : extensions) {
+			if (s == "EGL_KHR_gl_colorspace") {
+				extensionsIds[WSAL_EGL_EXTENSION_COLORSPACE] = true;
+			}
+		}
+		return extensionsIds;
+	}
+
 	void bindEglApi(EGLint api) {
 		EGLBoolean error = eglBindAPI(api);
 		if (error == EGL_FALSE) {
@@ -384,14 +595,14 @@ namespace WSAL {
 		EGLBoolean error = eglGetConfigs(display, nullptr, 0, &configCount);
 		if (error == EGL_FALSE) {
 			ASSERT_EGL();
-			return std::vector<EGLConfig>();
+			return {};
 		}
 		std::vector<EGLConfig> configs(configCount);
 		std::cout << "EGL config count " << configCount << std::endl;
 		error = eglGetConfigs(display, configs.data(), configCount, &configCount);
 		if (error == EGL_FALSE) {
 			ASSERT_EGL();
-			return std::vector<EGLConfig>();
+			return {};
 		}
 		return configs;
 
@@ -649,6 +860,7 @@ namespace WSAL {
 		EGLContext context = nullptr;
 		bool isCopy = true;
 		std::vector<std::string> extensions;
+		WsalEglExtensionId extensionIds;
 		std::vector<EGLint> restrictions;
 		EGLConfig usedConfig = nullptr;
 		bool isDebugContext = false;
@@ -663,10 +875,11 @@ namespace WSAL {
 			eglVersionMajor = version.first;
 			eglVersionMinor = version.second;
 			extensions = getSupportedEglExtensions(display);
+			extensionIds = getSupportedEglExtensionsById(extensions);
 		}
 
 		void printEglExtensions() {
-			for (auto extension : extensions) {
+			for (const auto &extension : extensions) {
 				std::cout << extension << std::endl;
 			}
 		}
@@ -679,8 +892,12 @@ namespace WSAL {
 			addEglColorSizeRestriction(&restrictions, color);
 		}
 
-		void addApiRestriction(const EGLint apis) {
-			addEglApiRestriction(&restrictions, apis);
+		void addApiRestriction() {
+#if WSAL_OGL == 1
+			addEglApiRestriction(&restrictions, EGL_OPENGL_ES_API);
+#elif WSAL_OGL == 2
+			addEglApiRestriction(&restrictions, EGL_OPENGL_API);
+#endif
 		}
 
 		void addDepthBufferRestriction(const EGLint bits) {
@@ -717,6 +934,10 @@ namespace WSAL {
 			return openGlEsVersion;
 		}
 
+		void printVendor() {
+			printEglVendor(display);
+		}
+
 		~EglContext() {
 			if (!isCopy) {
 				if (surface != nullptr) {
@@ -733,6 +954,19 @@ namespace WSAL {
 };
 
 #endif
+
+template<WsalContextCreation contextType>
+struct WsalOpenGlContext {
+
+	void createContext() {
+
+	}
+};
+
+struct WsalVulkanContext {
+
+};
+
 
 //}
 #endif //WSAL_H

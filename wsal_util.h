@@ -36,18 +36,59 @@ enum WSALEventTypes {
 	MOUSE_POSITION
 };
 
-struct WSALMouseEvent{
+struct WSALMouseEvent {
 	int position_X;
 	int position_Y;
 };
 
-struct WSALKeyboardEvent{
+struct WSALKeyboardEvent {
 	unsigned int keycode;
 };
 
-union WSALEvent{
+union WSALEvent {
 	WSALMouseEvent mouseEvent;
 	WSALKeyboardEvent keyboardEvent;
+};
+
+
+enum WsalApi {
+	WSAL_NO_API,
+	WSAL_API_GL,//GL_ES is controlled by preprocessor flags
+	WSAL_API_VULKAN,
+	WSAL_API_DX11,
+	WSAL_API_DX12,
+	WSAL_API_GPU_WEB,
+};
+
+enum WsalContextCreation {
+	WSAL_CONTEXT_NATIVE,
+	WSAL_CONTEXT_EGL,
+	WSAL_CONTEXT_GLX,
+	WSAL_CONTEXT_WGL,
+};
+
+/*
+ * Not ABI save or stable, consider use in header files as undefined behaviour!
+ */
+enum WsalWs {
+#if defined(WSAL_XLIB)
+	WSAL_WS_XLIB,
+#endif
+#if defined(WSAL_XCB)
+	WSAL_WS_XCB,
+#endif
+#if defined(WSAL_WAYLAND)
+	WSAL_WS_WAYLAND,
+#endif
+#if defined(WSAL_WEB)
+	WSAL_WS_WEB,
+#endif
+#if defined(WSAL_WIN)
+	WSAL_WS_WIN,
+#endif
+#if defined(WSAL_ANDROID)
+	WSAL_WS_ANDROID,
+#endif
 };
 
 class WSAL_Exception : std::exception {

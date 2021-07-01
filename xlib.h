@@ -54,6 +54,7 @@ public:
 																	 DefaultGC(display->getDisplay(), screenId)),
 															 visual(DefaultVisual(display->getDisplay(), screenId)),
 															 rootWindow(RootWindow(display->getDisplay(), screenId)) {
+		initGLX();
 	}
 
 	explicit XlibScreen(XlibDisplay *xlibDisplay) : screenId(xlibDisplay->getDefaultScreenNumber()),
@@ -65,7 +66,7 @@ public:
 													graphicsContext(DefaultGC(display->getDisplay(), screenId)),
 													visual(DefaultVisual(display->getDisplay(), screenId)),
 													rootWindow(RootWindow(display->getDisplay(), screenId)) {
-
+		initGLX();
 	}
 
 	[[nodiscard]] Display *getDisplay() const {
@@ -95,6 +96,21 @@ public:
 	[[nodiscard]]Window getRootWindow() const {
 		return rootWindow;
 	}
+
+#ifdef WSAL_GLX
+
+	bool supportsGlx(WsalApi) const {
+		return true;
+	}
+
+	void initGLX() const {
+		std::cout << " hi " << std::endl;
+		std::cout << glXQueryExtensionsString(display->getDisplay(), screenId) << std::endl;
+		glewInit();
+		glxewInit();
+	}
+
+#endif
 
 
 };
@@ -146,7 +162,7 @@ public:
 				WSALMouseEvent e{};
 				e.position_X = event.xmotion.x;
 				e.position_Y = event.xmotion.y;
-				WSALEvent resultEvent;
+				WSALEvent resultEvent{};
 				resultEvent.mouseEvent = e;
 				eventHandler->createEvent(resultEvent, MOUSE_POSITION);
 				break;
@@ -155,7 +171,7 @@ public:
 				WSALMouseEvent e{};
 				e.position_X = event.xbutton.x;
 				e.position_Y = event.xbutton.y;
-				WSALEvent resultEvent;
+				WSALEvent resultEvent{};
 				resultEvent.mouseEvent = e;
 				eventHandler->createEvent(resultEvent, BUTTON_PRESSED);
 			}
@@ -176,7 +192,6 @@ public:
 				resultEvent.keyboardEvent = e;
 				eventHandler->createEvent(resultEvent, KEY_PRESSED);
 			}
-
 				break;
 		}
 		return true;
@@ -233,6 +248,10 @@ public:
 
 #endif
 
+#ifdef WSAL_GLX
+
+
+#endif
 
 #ifdef WSAL_VULKAN
 

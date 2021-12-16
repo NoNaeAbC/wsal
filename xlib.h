@@ -44,6 +44,8 @@ class XlibScreen {
 	const GC graphicsContext;
 	Visual *visual;
 	const Window rootWindow;
+	WsalApi usedApi;
+	WsalContextCreation usedContext;
 public:
 	XlibScreen(int screenNumber, XlibDisplay *xlibDisplay) : screenId(screenNumber), display(xlibDisplay),
 															 blackPixel(BlackPixel(display->getDisplay(), screenId)),
@@ -54,7 +56,9 @@ public:
 																	 DefaultGC(display->getDisplay(), screenId)),
 															 visual(DefaultVisual(display->getDisplay(), screenId)),
 															 rootWindow(RootWindow(display->getDisplay(), screenId)) {
+#if WSAL_GLX == 2
 		initGLX();
+#endif
 	}
 
 	explicit XlibScreen(XlibDisplay *xlibDisplay) : screenId(xlibDisplay->getDefaultScreenNumber()),
@@ -66,7 +70,9 @@ public:
 													graphicsContext(DefaultGC(display->getDisplay(), screenId)),
 													visual(DefaultVisual(display->getDisplay(), screenId)),
 													rootWindow(RootWindow(display->getDisplay(), screenId)) {
+#if WSAL_GLX == 2
 		initGLX();
+#endif
 	}
 
 	[[nodiscard]] Display *getDisplay() const {
@@ -99,8 +105,25 @@ public:
 
 #ifdef WSAL_GLX
 
-	bool supportsGlx(WsalApi) const {
+	std::vector<std::string> extensions;
+
+	void getExtensions() {
+		std::istringstream extensionString(glXQueryExtensionsString(display->getDisplay(), screenId));
+		std::string extension;
+		while (std::getline(extensionString, extension, ' ')) {
+			extensions.push_back(extension);
+		}
+	}
+
+	[[nodiscard]] bool supportsGlx() const {
+#if WSAL_OGL == 1
+		return std::ranges::any_of(extensions, [](const std::string &extension) {
+			return extension == "GLX_EXT_create_context_es2_profile";
+		});
+#elif WSAL_OGL == 2
 		return true;
+#endif
+		return false;
 	}
 
 	void initGLX() const {
@@ -111,6 +134,29 @@ public:
 	}
 
 #endif
+
+	std::vector<WsalContextCreation> getPossibleContext(WsalApi api) {
+		usedApi = api;
+		switch (api) {
+			case WSAL_API_GL: {
+				if
+#if WSAL_GLX == 2
+						(supportsGlx()) {
+					return {WSAL_CONTEXT_EGL, WSAL_CONTEXT_GLX};
+				} else if
+#endif
+						(true) {
+					return {WSAL_CONTEXT_EGL};
+				}
+			}
+			default:
+				return {WSAL_CONTEXT_NATIVE};
+		}
+	};
+
+	void selectContext(WsalContextCreation api) {
+		usedContext = api;
+	};
 
 
 };
@@ -221,6 +267,8 @@ public:
 
 #ifdef WSAL_EGL
 
+	std::vector<int> attributes;
+
 	bool supportsEgl() {
 		return true;
 	}
@@ -238,14 +286,18 @@ public:
 	}
 
 	EGLSurface createEglSurface(EGLDisplay display, EGLConfig config) {
-		EGLSurface surface = eglCreateWindowSurface(display, config, window, nullptr);
+		attributes.push_back(EGL_NONE);
+		EGLSurface surface = eglCreateWindowSurface(display, config, window, attributes.data());
 		if (surface == EGL_NO_SURFACE) {
 			ASSERT_EGL();
 		}
 		return surface;
 	}
 
-
+#else
+	bool supportsEgl() {
+		return false;
+	}
 #endif
 
 #ifdef WSAL_GLX

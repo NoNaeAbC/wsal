@@ -16,7 +16,7 @@
 
 #if defined(WSAL_USE_OPEN_GL_ES)
 #define WSAL_OGL 1
-#elif defined(WSAL_USE_OPEN_GL_ES)
+#elif defined(WSAL_USE_OPEN_GL)
 #define WSAL_OGL 2
 #endif
 
@@ -369,6 +369,25 @@ public:
 	[[nodiscard]] void *getWsContext() const {
 		return wsContext;
 	}
+
+	std::vector<WsalContextCreation> getContext(WsalApi api) {
+		switch (windowSystem) {
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
+				return ((WsalXlibContext *) wsContext)->screen->getPossibleContext(api);
+#endif
+		}
+	}
+
+	void selectContext(WsalContextCreation api) {
+		switch (windowSystem) {
+#ifdef WSAL_XLIB
+			case WSAL_WS_XLIB:
+				((WsalXlibContext *) wsContext)->screen->selectContext(api);
+				return;
+#endif
+		}
+	}
 };
 
 template<class T>
@@ -470,7 +489,7 @@ std::unique_ptr<WsalWindow<T>> createWindow(WsalContext<T> *context) {
 	return std::make_unique<WsalWindow<T>>(context->getWindowSystem(), context);
 }
 
-
+#define WSAL_EGL
 #ifdef WSAL_EGL
 
 namespace WSAL {
